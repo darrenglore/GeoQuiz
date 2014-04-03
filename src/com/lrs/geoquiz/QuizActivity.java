@@ -1,7 +1,12 @@
 package com.lrs.geoquiz;
 
+import android.annotation.TargetApi;
+import android.app.ActionBar;
 import android.app.Activity;
+import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
+
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -14,11 +19,14 @@ import android.widget.Toast;
 public class QuizActivity extends Activity {
 	
 	private static final String TAG = "QuizActivity";
+	private static final String KEY_INDEX = "index";
+	private static final String KEY_CHEATER = "cheater";
 
 	private Button mTrueButton;
 	private Button mFalseButton; 
-	private ImageButton mNextButton;
+	private ImageButton mNextButton; 
 	private ImageButton mPrevButton;
+	private Button mCheatButton;
 	private TextView mQuestionTextView;
 	
 	private TrueFalse[] mQuestionBank = new TrueFalse[] {
@@ -30,8 +38,10 @@ public class QuizActivity extends Activity {
 	};
 	
 	private int mCurrentIndex = 0;
+	private boolean mIsCheater;
 	
 	private void updateQuestion(){
+		//Log.d(TAG,"Updating question text for question #" + mCurrentIndex, new Exception());
 		int question = mQuestionBank[mCurrentIndex].getQuestion();
 		mQuestionTextView.setText(question);
 	}
@@ -41,35 +51,62 @@ public class QuizActivity extends Activity {
 		
 		int messageResId = 0;
 		
-		if (userPressedTrue == answerIsTrue){
-			messageResId = R.string.correct_toast;
+		if (mIsCheater){
+			messageResId = R.string.judgment_toast;
 		}else{
-			messageResId = R.string.incorrect_toast;
+			if (userPressedTrue == answerIsTrue){
+				messageResId = R.string.correct_toast;
+			}else{
+				messageResId = R.string.incorrect_toast;
+			}
 		}
-		
 		Toast.makeText(this, messageResId, Toast.LENGTH_SHORT).show();
 		
 	}
 	
 	private void nextQuestion(){
 		mCurrentIndex = (mCurrentIndex + 1) % mQuestionBank.length;
+		mIsCheater = false;
 		updateQuestion();
 	}
 	
 	private void prevQuestion(){
 		mCurrentIndex = (mCurrentIndex - 1);
 		if (mCurrentIndex < 0){
-			mCurrentIndex = mQuestionBank.length - 1;
+			mCurrentIndex = mQuestionBank.length - 1; 
 		}
+		mIsCheater = false;
 		updateQuestion();
 	}
 	
+	@Override
+	protected void onActivityResult(int requestCode, int resultCode, Intent data){
+		if (data == null){
+			return;
+		}
+		mIsCheater = data.getBooleanExtra(CheatActivity.EXTRA_ANSWER_SHOWN, false);
+	}
 	
+	@Override
+	public void onSaveInstanceState(Bundle savedInstanceState){
+		super.onSaveInstanceState(savedInstanceState);
+		Log.i(TAG,"onSaveInstanceState");
+		savedInstanceState.putInt(KEY_INDEX, mCurrentIndex);
+		savedInstanceState.putBoolean(KEY_CHEATER, mIsCheater);
+	}
+	
+	@TargetApi(11)
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		Log.d(TAG, "onCreate(Bundle) called");
 		setContentView(R.layout.activity_quiz);
+		
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB){
+			ActionBar actionBar = getActionBar();
+			actionBar.setSubtitle("Bodies of Water");
+		}
+
 		
 		mQuestionTextView = (TextView)findViewById(R.id.question_text_view);
 		mQuestionTextView.setOnClickListener(new View.OnClickListener() {
@@ -105,6 +142,7 @@ public class QuizActivity extends Activity {
 			@Override
 			public void onClick(View v) {
 				nextQuestion();
+				
 			}
 			
 		});
@@ -117,6 +155,26 @@ public class QuizActivity extends Activity {
 				prevQuestion();	
 			}
 		});
+		
+		mCheatButton = (Button)findViewById(R.id.cheat_button);
+		mCheatButton.setOnClickListener(new View.OnClickListener(){
+
+			@Override
+			public void onClick(View v) {
+				//Start CheatActivity
+				Intent i = new Intent(QuizActivity.this, CheatActivity.class);
+				boolean answerIsTrue = mQuestionBank[mCurrentIndex].isTrueQuestion();
+				i.putExtra(CheatActivity.EXTRA_ANSWER_IS_TRUE, answerIsTrue);
+				startActivityForResult(i, 0);
+			}
+			
+		});
+		
+		
+		if (savedInstanceState != null){
+			mCurrentIndex = savedInstanceState.getInt(KEY_INDEX, 0);
+			mIsCheater = savedInstanceState.getBoolean(KEY_CHEATER,false);
+		}
 		
 		updateQuestion();
 		
